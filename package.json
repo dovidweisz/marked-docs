@@ -1,0 +1,15 @@
+{
+  "name": "marked-docs",
+  "version": "1.0.0",
+  "description": "Generate HTML\u001b[D\u001b[D\u001b[D\u001b[D\u001b[D an HTML site from your docs\u001b[D\u001b[D\u001b[D\u001b[D\u001b[D .md docs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Dovid Weisz",
+  "license": "MIT",
+  "dependencies": {
+    "lodash": "^4.15.0",
+    "marked": "^0.3.6"
+  }
+}
