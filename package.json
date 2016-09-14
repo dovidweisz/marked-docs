@@ -11,5 +11,9 @@
   "dependencies": {
     "lodash": "^4.15.0",
     "marked": "^0.3.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/dovidweisz/marked-docs.git"
   }
 }
