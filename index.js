@@ -5,7 +5,7 @@ let _ = require("lodash");
 let resolvePath = require("./resolvePath");
 
 let inputOptions = {
-    repoRoot: "/repos/waterfall/client",
+    repoRoot: "/bnh/waterfall/client",
     indexFileName: "readme.md",
     entry: "sass"
 }
@@ -26,47 +26,54 @@ class Replicator{
         this.rootLength = this.inputOptions.repoRoot.length + 1;
     }
     replicate(path, context){
-        if( this.active < 5 ){
+        if( this.active <= 5 ){
             this.active++;
-            this._replicate(path, context, () => {
+            this._replicate(path, context, (err) => {
                 this.active--;
-                this.shiftQuue();
-        console.log("active", this.active);
+                //console.log("active", this.active, err);
+                this.shiftQuue();true
+
             });
-       // console.log("active", this.active);
         }
         else{
             this.quue.push([path, context]);
         }
     }
     _replicate(path, context, cb){
-        var resolvedPath = resolvePath(path, context, this.inputOptions.repoRoot);
-        console.log(path, context, resolvedPath);
-        if(! resolvedPath){
-            cb();
-            return false;
-        }
-        if( /\/$/.test(resolvedPath) ){
-            resolvedPath += this.inputOptions.indexFileName;
-        }
-        if(_.indexOf(this.history, resolvedPath) >= 0){
-            cb();
-            return false;
-        }
-        if(/\.md$/.test(resolvedPath)){
+        try{
+            var resolvedPath = resolvePath(path, context, this.inputOptions.repoRoot);
+            //console.log(path, context, resolvedPath);
+            if(! resolvedPath){
+                cb();
+                return false;
+            }
+            if( /\/$/.test(resolvedPath) ){
+                resolvedPath += this.inputOptions.indexFileName;
+            }
+            console.log(resolvedPath);
+            if(_.indexOf(this.history, resolvedPath) >= 0){
+                cb();
+                return false;
+            }
+            this.history.push(resolvedPath);
             fs.readFile(resolvedPath, (err, data) => {
                 if (err){
                     cb( err);
                 } else {
-                    this._multiReplicate(findLinks(data), resolvedPath);
-                    //console.log(findLinks(data));
-                    cb();
+                    
+                    if(/\.md$/.test(resolvedPath)){
+                        this._multiReplicate(findLinks(data), resolvedPath);
+                        cb();
+                    }else{
+                        
+                        cb();
+                    }
                 }
                 
             });
+        }catch(e){
+            cb(e);
         }
-        cb();
-        
     }
     _multiReplicate(links, sourceResolved){
         var context = contextForResolved(sourceResolved, this.rootLength);
@@ -75,7 +82,8 @@ class Replicator{
         });
     }
     shiftQuue(){
-        while(this.active < 5 && this.quue.length > 0){
+        while(this.active <= 5 && this.quue.length > 0){
+            //console.log(this.quue);
             let next = this.quue.shift();
             this.replicate.apply(this, next);
         }
@@ -112,6 +120,15 @@ function findLinks(data){
 //    console.log(resolvePath("shmigegi/mishgegi", context)); 
 var replicator = new Replicator(inputOptions, outputOptions);
 replicator.replicate(inputOptions.indexFileName, inputOptions.entry);
-
+function wait () {
+   if (replicator.active > 0){
+        setTimeout(wait, 1000);
+        replicator.shiftQuue();
+    }
+        console.log(replicator.active, replicator.history.length);
+};
+//wait();
    
 })()
+
+
