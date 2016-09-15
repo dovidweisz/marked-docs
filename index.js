@@ -4,14 +4,22 @@ let fs = require("fs");
 let _ = require("lodash");
 let resolvePath = require("./resolvePath");
 
+let mkdirp = require('mkdirp');
+let marked = require('marked');
+
+let promisify = require("es6-promisify");
+let lstat = promisify(fs.lstat);
+let readFile = promisify(fs.readFile);
+let writeFile = promisify(fs.writeFile);
+
 let inputOptions = {
-    repoRoot: "/bnh/waterfall/client",
+    repoRoot: "/repos/waterfall/client",
     indexFileName: "readme.md",
     entry: "sass"
 }
 
 let outputOptions = {
-    root: "/repos/docs-test/",
+    root: "/repos/docs-test",
     ext: "html",
     indexName: "index"
 }
@@ -25,23 +33,24 @@ class Replicator{
         this.active = 0;
         this.rootLength = this.inputOptions.repoRoot.length + 1;
     }
-    replicate(path, context){
+    replicate(path, context, resolvedPath){
         if( this.active <= 5 ){
             this.active++;
             this._replicate(path, context, (err) => {
                 this.active--;
-                //console.log("active", this.active, err);
-                this.shiftQuue();true
-
-            });
+                if(err){
+                    console.error(err);
+                }
+                return this.shiftQuue();
+            }, resolvedPath);
         }
         else{
-            this.quue.push([path, context]);
+            this.quue.push([path, context, resolvedPath]);
         }
     }
-    _replicate(path, context, cb){
+    _replicate(path, context, cb, resolvedPath ){
         try{
-            var resolvedPath = resolvePath(path, context, this.inputOptions.repoRoot);
+            resolvedPath = resolvedPath || resolvePath(path, context, this.inputOptions.repoRoot).resolved;
             //console.log(path, context, resolvedPath);
             if(! resolvedPath){
                 cb();
@@ -56,21 +65,37 @@ class Replicator{
                 return false;
             }
             this.history.push(resolvedPath);
-            fs.readFile(resolvedPath, (err, data) => {
-                if (err){
-                    cb( err);
-                } else {
-                    
+
+            lstat(resolvedPath).then(( stats ) => {
+                if(stats.isDirectory()){
+                    this._replicate(path, context, cb, resolvedPath + "/" );
+                }else if(stats.isFile()){
+                    let outputPath = resolvedPath.replace(this.inputOptions.repoRoot, this.outputOptions.root);
                     if(/\.md$/.test(resolvedPath)){
-                        this._multiReplicate(findLinks(data), resolvedPath);
-                        cb();
-                    }else{
+                        readFile(resolvedPath, "utf-8").then((data)=>{
                         
-                        cb();
+                            //this._multiReplicate(findLinks(data), resolvedPath);
+                            data = this._parseMDFile(data, contextForResolved(resolvedPath, this.rootLength));
+
+                            if(/\.md$/i.test(outputPath)){
+                                let readMe = /readme\.md$/i;
+                                if(/readme\.md$/i.test(outputPath)){
+                                    outputPath = outputPath.replace(readMe, "index.html");
+                                }
+                                outputPath = outputPath.replace(/md$/i, "html");
+                            }
+                                                    
+                            safeWriteFile(outputPath , marked(data) ).then(cb,cb);
+                            cb();
+                            
+                        }, cb);
+                    }else{
+                        readFile(resolvedPath).then(function(data){
+                            safeWriteFile(outputPath ,data).then(cb,cb);
+                        }, cb);                        
                     }
                 }
-                
-            });
+            }, cb);
         }catch(e){
             cb(e);
         }
@@ -88,6 +113,26 @@ class Replicator{
             this.replicate.apply(this, next);
         }
     }
+    _parseMDFile(data, context){
+        let inlineLinks = /\[.+]\((.*?)\)/g;
+
+        let _replaceFunc = (match, filePath)=>{
+            let resolved = resolvePath(filePath, context, this.inputOptions.repoRoot);
+            if (resolved.type != "external"){
+                console.log(resolved.orig, context, resolved);
+                this.quue.push([resolved.orig, context , resolved.resolved]);
+                if(/\.md$/i.test(resolved.orig)){
+                  if(/readme\.md$/i.test(resolved.orig)){
+                    return match.replace(/readme\.md(\)?)$/i, "index.html$1");
+                  }
+                  return match.replace(/\.md(\)?)$/i, ".html$1");
+                }
+            } 
+            return match;
+        }
+
+        return data.replace(/\[.+?]\((.*?)\)/g, _replaceFunc).replace(/^\[.+\]\s*:\s*(.*)$/gm, _replaceFunc );
+    }
     
 }
 
@@ -96,17 +141,18 @@ function contextForResolved(resolved, rootLength){
     return resolved.replace(/\/[^/]*$/, "");
 }
 
-function findLinks(data){
-    let inlineLinks = /\[.+]\((.*?)\)/g;
-    let result;
-    let rv = [];
-    while((result = inlineLinks.exec(data)) !== null ){
-        rv.push(result[1]);
-    }
-    return rv;
+
+function safeWriteFile(path, data){
+    return new Promise( function(resolve, reject){
+        mkdirp(path.replace(/\/[^/]*$/, ""), function(err){
+            if(err){
+                reject(err);
+            }else{
+                writeFile(path, data).then(resolve,reject);
+            }
+        });
+    });
 }
-
-
 
 (function(){
     var //root = "/c/sdfdf/sdf",
@@ -123,12 +169,13 @@ replicator.replicate(inputOptions.indexFileName, inputOptions.entry);
 function wait () {
    if (replicator.active > 0){
         setTimeout(wait, 1000);
-        replicator.shiftQuue();
+        //replicator.shiftQuue();
     }
         console.log(replicator.active, replicator.history.length);
 };
 //wait();
    
 })()
+
 
 

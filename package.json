@@ -9,8 +9,10 @@
   "author": "Dovid Weisz",
   "license": "MIT",
   "dependencies": {
+    "es6-promisify": "^4.1.0",
     "lodash": "^4.15.0",
-    "marked": "^0.3.6"
+    "marked": "^0.3.6",
+    "mkdirp": "^0.5.1"
   },
   "repository": {
     "type": "git",

@@ -10,12 +10,18 @@ let pathTests = {
 function resolvePath(path, context, repoRoot){
     path = path.trim();
     //console.log(getPathType(path));
-    return pathResolvers[getPathType(path)](path, repoRoot, context);
+
+    let pathType = getPathType(path);
+    return {
+        type : pathType,
+        orig : path,
+        resolved : pathResolvers[pathType](path, repoRoot, context)
+    };
 }
 
 let pathResolvers = {
     external: function(){
-        return false;
+        return null;
     },
     root : function(path, repoRoot){
         return repoRoot + path;
@@ -30,7 +36,7 @@ let pathResolvers = {
         //console.log("dirsUp", dirsUp, "(\\/[^\\/]+){" + dirsUp + "}$");
         let replacer = new RegExp("(\\/[^\\/]+){" + dirsUp + "}$");
         if( ! replacer.test(context) ){
-            return false;
+            return null;
         }
         return repoRoot + "/" + context.replace(replacer, "/") + path.replace(finder, "");
     },
