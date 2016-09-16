@@ -4,6 +4,7 @@ let fs = require("fs");
 let _ = require("lodash");
 let resolvePath = require("./resolvePath");
 let atxHeaders =  require("./atxHeaders");
+let highlighter = require("./syntaxHighlighting");
 
 let mkdirp = require('mkdirp');
 let marked = require('marked');
@@ -88,7 +89,7 @@ class Replicator{
                                 outputPath = outputPath.replace(/md$/i, "html");
                             }
                                                     
-                            safeWriteFile(outputPath , marked( atxHeaders(data) ) ).then(cb,cb);
+                            safeWriteFile(outputPath , marked( highlighter( atxHeaders(data) ) ) ).then(cb,cb);
                             cb();
                             
                         }, cb);
