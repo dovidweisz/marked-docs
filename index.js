@@ -3,6 +3,7 @@
 let fs = require("fs");
 let _ = require("lodash");
 let resolvePath = require("./resolvePath");
+let atxHeaders =  require("./atxHeaders");
 
 let mkdirp = require('mkdirp');
 let marked = require('marked');
@@ -30,12 +31,14 @@ class Replicator{
         this.outputOptions = outputOptions;
         this.quue = [];
         this.history = [];
+        this.maxActive = 50;
         this.active = 0;
         this.rootLength = this.inputOptions.repoRoot.length + 1;
     }
     replicate(path, context, resolvedPath){
-        if( this.active <= 5 ){
+        if( this.active <= this.maxActive ){
             this.active++;
+            console.log(this.active);
             this._replicate(path, context, (err) => {
                 this.active--;
                 if(err){
@@ -75,7 +78,7 @@ class Replicator{
                         readFile(resolvedPath, "utf-8").then((data)=>{
                         
                             //this._multiReplicate(findLinks(data), resolvedPath);
-                            data = this._parseMDFile(data, contextForResolved(resolvedPath, this.rootLength));
+                            data = this._parseMDLinks(data, contextForResolved(resolvedPath, this.rootLength));
 
                             if(/\.md$/i.test(outputPath)){
                                 let readMe = /readme\.md$/i;
@@ -85,7 +88,7 @@ class Replicator{
                                 outputPath = outputPath.replace(/md$/i, "html");
                             }
                                                     
-                            safeWriteFile(outputPath , marked(data) ).then(cb,cb);
+                            safeWriteFile(outputPath , marked( atxHeaders(data) ) ).then(cb,cb);
                             cb();
                             
                         }, cb);
@@ -107,19 +110,18 @@ class Replicator{
         });
     }
     shiftQuue(){
-        while(this.active <= 5 && this.quue.length > 0){
+        while(this.active <= this.maxActive && this.quue.length > 0){
             //console.log(this.quue);
             let next = this.quue.shift();
             this.replicate.apply(this, next);
         }
     }
-    _parseMDFile(data, context){
+    _parseMDLinks(data, context){
         let inlineLinks = /\[.+]\((.*?)\)/g;
 
         let _replaceFunc = (match, filePath)=>{
             let resolved = resolvePath(filePath, context, this.inputOptions.repoRoot);
             if (resolved.type != "external"){
-                console.log(resolved.orig, context, resolved);
                 this.quue.push([resolved.orig, context , resolved.resolved]);
                 if(/\.md$/i.test(resolved.orig)){
                   if(/readme\.md$/i.test(resolved.orig)){
